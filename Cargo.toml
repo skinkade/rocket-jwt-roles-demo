@@ -1,0 +1,21 @@
+[package]
+name = "rocket-jwt-roles-demo"
+version = "0.1.0"
+authors = ["Shawn Kinkade"]
+
+[dependencies]
+rocket = "0.1.5"
+rocket_codegen = "0.1.5"
+diesel = "0.9.0"
+diesel_codegen = { version = "0.9.0", features = ["postgres"] }
+dotenv = "0.8.0"
+time = "0.1"
+jsonwebtoken = "1"
+rustc-serialize = "0.3"
+argon2rs = "0.2.5"
+
+
+[dependencies.rocket_contrib]
+version = "0.1.5"
+default-features = false
+features = ["handlebars_templates"]

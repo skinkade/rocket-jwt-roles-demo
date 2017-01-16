@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Index</title>
+</head>
+<body>
+
+<style>
+    hr { visibility: hidden }
+</style>
+
+<h3>Hello {{name}}!</h3>
+
+{{#if admin~}}
+    <div>
+        <a href="/admin/index">Admin Console</a>
+        <hr />
+        <a href="/admin/user">Display User Roles</a>
+    </div>
+{{/if}}
+
+<div>
+    <form action="/logout" method="post">
+        <button name="logout" value="logout">Logout</button>
+    </form>
+</div>
+
+
+</body>
+</html>
