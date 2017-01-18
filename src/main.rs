@@ -4,7 +4,6 @@
 
 use std::io;
 use std::env;
-use std::path::PathBuf;
 use std::collections::HashMap;
 
 extern crate rocket;
@@ -160,15 +159,15 @@ fn logout(cookies: &Cookies) -> Redirect {
 
 
 // ADMIN
-//      By using a PathBuf in our main handler, we can use a single block of
-//      cookie-check code to verify if the user has the admin role. Then,
+//      By using a dynamic path in our main handler, we can use a single block
+//      of cookie-check code to verify if the user has the admin role. Then,
 //      pseudo-redirect the request to another function
 //
 //      By returning 404 instead of 403, we don't reveal that these pages exist
 //      ... also trying to use Result and returning Err(Status) resulted in 500
 //
-#[get("/admin/<pathbuf..>")]
-fn admin_handler(cookies: &Cookies, pathbuf: PathBuf) -> Option<Template> {
+#[get("/admin/<path>")]
+fn admin_handler(cookies: &Cookies, path: &str) -> Option<Template> {
     let token = match cookies.find("jwt").map(|cookie| cookie.value) {
         Some(jwt) => jwt,
         _ => return None,
@@ -181,7 +180,6 @@ fn admin_handler(cookies: &Cookies, pathbuf: PathBuf) -> Option<Template> {
         return None;
     }
 
-    let path = pathbuf.to_str().unwrap();
     match path {
         "index" => return Some(admin_index()),
         "user" => return Some(display_user(token_data.claims.user)),
