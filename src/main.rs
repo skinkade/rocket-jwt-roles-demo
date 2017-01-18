@@ -68,6 +68,8 @@ static ONE_WEEK: i64 = 60 * 60 * 24 * 7;
 struct UserRolesToken {
     // issued at
     iat: i64,
+    // expiration
+    exp: i64,
     user: String,
     roles: Vec<String>,
 }
@@ -76,22 +78,24 @@ struct UserRolesToken {
 impl UserRolesToken {
     fn is_expired(&self) -> bool {
         let now = time::get_time().sec;
-        (now - self.iat) > ONE_WEEK
+        now >= self.exp
     }
 
     fn is_claimed_user(&self, claimed_user: String) -> bool {
         self.user == claimed_user
     }
 
-    fn has_role(&self, role: String) -> bool {
-        self.roles.contains(&role)
+    fn has_role(&self, role: &str) -> bool {
+        self.roles.contains(&role.to_string())
     }
 }
 
 
 fn jwt_generate(user: String, roles: Vec<String>) -> String {
+    let now = time::get_time().sec;
     let payload = UserRolesToken {
-        iat: time::get_time().sec,
+        iat: now,
+        exp: now + ONE_WEEK,
         user: user,
         roles: roles,
     };
@@ -173,7 +177,7 @@ fn admin_handler(cookies: &Cookies, pathbuf: PathBuf) -> Option<Template> {
     // You'll want to match on and log errors instead of unwrapping, of course
     let token_data = decode::<UserRolesToken>(&token, KEY, Algorithm::HS256).unwrap();
 
-    if !token_data.claims.has_role("admin".to_owned()) {
+    if !token_data.claims.has_role("admin") {
         return None;
     }
 
@@ -223,8 +227,8 @@ fn index(cookies: &Cookies) -> Result<Template, Redirect> {
     let mut context = HashMap::new();
     context.insert("name", token_data.claims.user.clone());
 
-    if token_data.claims.has_role("admin".to_owned()) {
-        context.insert("admin", "true".to_owned());
+    if token_data.claims.has_role("admin") {
+        context.insert("admin", "true".to_string());
     }
 
     Ok(Template::render("index", &context))
