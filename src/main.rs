@@ -7,17 +7,22 @@ use std::env;
 use std::collections::HashMap;
 
 extern crate rocket;
+
 use rocket::request::Form;
 use rocket::response::NamedFile;
 use rocket::response::Redirect;
 use rocket::http::{Cookie, Cookies};
+use rocket::request::{self, Request, FromRequest};
+use rocket::Outcome;
+use rocket::http::Status;
 
 extern crate rocket_contrib;
+
 use rocket_contrib::Template;
 
 extern crate dotenv;
-use dotenv::dotenv;
 
+use dotenv::dotenv;
 
 
 // DATABASE
@@ -27,8 +32,10 @@ use dotenv::dotenv;
 //
 #[macro_use]
 extern crate diesel;
+
 use diesel::prelude::*;
 use diesel::pg::PgConnection;
+
 #[macro_use]
 extern crate diesel_codegen;
 
@@ -44,7 +51,6 @@ fn establish_connection() -> PgConnection {
 }
 
 
-
 // JSON WEB TOKEN
 //      Our `users` table contain a text array of a given user's roles
 //      When we verify a user, we give them a signed token confirming their
@@ -53,9 +59,11 @@ fn establish_connection() -> PgConnection {
 extern crate time;
 extern crate rustc_serialize;
 extern crate jsonwebtoken as jwt;
-use jwt::{encode, decode, Header, Algorithm};
+
+use jwt::{encode, decode, Header, Algorithm, TokenData};
 
 extern crate argon2rs;
+
 use argon2rs::verifier::Encoded;
 
 // head -c16 /dev/urandom > secret.key
@@ -103,7 +111,6 @@ fn jwt_generate(user: String, roles: Vec<String>) -> String {
 }
 
 
-
 // AUTHENTICATION
 //      Pretty self-explanatory
 //          - Get row of the user
@@ -118,7 +125,7 @@ struct Login {
     password: String,
 }
 
-#[post("/login", data="<login_form>")]
+#[post("/login", data = "<login_form>")]
 fn login(cookies: &Cookies, login_form: Form<Login>) -> Redirect {
     use schema::users::dsl::*;
 
@@ -156,7 +163,29 @@ fn logout(cookies: &Cookies) -> Redirect {
     Redirect::to("/")
 }
 
+#[derive(Debug)]
+struct AdminToken {
+    name: String
+}
 
+impl<'a, 'r> FromRequest<'a, 'r> for AdminToken {
+    type Error = ();
+
+    fn from_request(request: &'a Request<'r>) -> request::Outcome<AdminToken, ()> {
+
+        if let Some(token) = request.cookies().find("jwt").map(|cookie| cookie.value) {
+            let token_data = decode::<UserRolesToken>(&token, KEY, Algorithm::HS256).unwrap();
+            println!("{:?}", token_data);
+            if !token_data.claims.has_role("admin") {
+                return Outcome::Failure((Status::Unauthorized,()));
+            } else {
+                return Outcome::Success(AdminToken { name: token_data.claims.user })
+            }
+        };
+
+        return Outcome::Failure((Status::NotFound,()));
+    }
+}
 
 // ADMIN
 //      By using a dynamic path in our main handler, we can use a single block
@@ -167,22 +196,11 @@ fn logout(cookies: &Cookies) -> Redirect {
 //      ... also trying to use Result and returning Err(Status) resulted in 500
 //
 #[get("/admin/<path>")]
-fn admin_handler(cookies: &Cookies, path: &str) -> Option<Template> {
-    let token = match cookies.find("jwt").map(|cookie| cookie.value) {
-        Some(jwt) => jwt,
-        _ => return None,
-    };
-
-    // You'll want to match on and log errors instead of unwrapping, of course
-    let token_data = decode::<UserRolesToken>(&token, KEY, Algorithm::HS256).unwrap();
-
-    if !token_data.claims.has_role("admin") {
-        return None;
-    }
+fn admin_handler(cookies: &Cookies, t: AdminToken, path: &str) -> Option<Template> {
 
     match path {
         "index" => return Some(admin_index()),
-        "user" => return Some(display_user(token_data.claims.user)),
+        "user" => return Some(display_user(t.name)),
         _ => return None,
     }
 }
@@ -196,6 +214,7 @@ fn admin_index() -> Template {
 fn display_user(user: String) -> Template {
     use schema::users::dsl::*;
     let connection = establish_connection();
+
     let user = users.filter(username.eq(&user))
         .first::<models::User>(&connection)
         .expect(&format!("Failed to retrieve {}", user));
@@ -206,7 +225,6 @@ fn display_user(user: String) -> Template {
 
     Template::render("admin/console", &context)
 }
-
 
 
 // LAUNCHER
